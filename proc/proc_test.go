@@ -6,9 +6,11 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -1825,4 +1827,56 @@ func TestStepParked(t *testing.T) {
 			t.Fatalf("Step did not continue on the selected goroutine, expected %d got %d", parkedg.ID, p.SelectedGoroutine.ID)
 		}
 	})
+}
+
+func TestUnsupportedArch(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "TestUnsupportedArch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Chdir(tmpdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(wd)
+
+	const src = `
+package main
+
+func main() {
+}
+`
+	err = ioutil.WriteFile("a.go", []byte(src), 0666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("go", "build", "-gcflags=-N -l", "-o", "a.exe")
+	for _, v := range os.Environ() {
+		if !strings.HasPrefix(v, "GOARCH=") {
+			cmd.Env = append(cmd.Env, v)
+		}
+	}
+	cmd.Env = append(cmd.Env, "GOARCH=386")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build failed: %v: %v", err, string(out))
+	}
+
+	p, err := Launch([]string{filepath.Join(tmpdir, "a.exe")})
+	switch err {
+	case UnsupportedArchErr:
+		// all good
+	case nil:
+		p.Halt()
+		p.Kill()
+		t.Fatal("Launch is expected to fail, but succeeded")
+	default:
+		t.Fatal(err)
+	}
 }

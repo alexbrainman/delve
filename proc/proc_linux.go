@@ -162,6 +162,8 @@ func (dbp *Process) updateThreadList() error {
 	return nil
 }
 
+var UnsupportedArchErr = errors.New("unsupported architecture - only linux-amd64 is supported")
+
 func (dbp *Process) findExecutable(path string) (*elf.File, error) {
 	if path == "" {
 		path = fmt.Sprintf("/proc/%d/exe", dbp.Pid)
@@ -173,6 +175,9 @@ func (dbp *Process) findExecutable(path string) (*elf.File, error) {
 	elfFile, err := elf.NewFile(f)
 	if err != nil {
 		return nil, err
+	}
+	if elfFile.Machine != elf.EM_X86_64 {
+		return nil, UnsupportedArchErr
 	}
 	dbp.dwarf, err = elfFile.DWARF()
 	if err != nil {

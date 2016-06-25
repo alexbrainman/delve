@@ -308,6 +308,8 @@ func (dbp *Process) parseDebugLineInfo(exe *pe.File, wg *sync.WaitGroup) {
 	}
 }
 
+var UnsupportedArchErr = errors.New("unsupported architecture of windows-386 - only windows-amd64 is supported")
+
 func (dbp *Process) findExecutable(path string) (*pe.File, error) {
 	if path == "" {
 		// TODO: Find executable path from PID/handle on Windows:
@@ -321,6 +323,9 @@ func (dbp *Process) findExecutable(path string) (*pe.File, error) {
 	peFile, err := pe.NewFile(f)
 	if err != nil {
 		return nil, err
+	}
+	if peFile.Machine != pe.IMAGE_FILE_MACHINE_AMD64 {
+		return nil, UnsupportedArchErr
 	}
 	dbp.dwarf, err = dwarfFromPE(peFile)
 	if err != nil {
